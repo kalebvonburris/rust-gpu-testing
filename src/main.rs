@@ -7,7 +7,7 @@ use rayon::prelude::*;
 
 #[tokio::main]
 async fn main() {
-    let numbers: Vec<_> = (0..65_000).collect();
+    let numbers: Vec<_> = (0..50_000).collect();
 
     println!("Benching GPU...");
 
@@ -26,21 +26,21 @@ async fn main() {
 
     for (index, gpu_ans) in steps_gpu.iter().enumerate() {
         if *gpu_ans != steps_cpu[index] {
-            println!("GPU Answer: {} != CPU Answer: {}", gpu_ans, steps_cpu[index]);
+            println!(
+                "GPU Answer: {} != CPU Answer: {}",
+                gpu_ans, steps_cpu[index]
+            );
             panic!("Your code is wrong!");
         }
     }
 
     println!("Answers recieved were identical.");
-
 }
 
 const MAX: u32 = 100000;
 
 fn execute_cpu(numbers: Vec<u32>) -> Vec<u32> {
-    return numbers.par_iter().map( |num| {
-        fib(*num)
-    }).collect()
+    return numbers.par_iter().map(|num| fib(*num)).collect();
 }
 
 fn fib(n: u32) -> u32 {

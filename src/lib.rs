@@ -1,4 +1,6 @@
-﻿use std::borrow::Cow;
+﻿use futures::future::join_all;
+use rayon::prelude::*;
+use std::borrow::Cow;
 use wgpu::{util::DeviceExt, Limits};
 
 pub async fn execute_gpu(numbers: Vec<u32>) -> Option<Vec<u32>> {
@@ -26,11 +28,14 @@ pub async fn execute_gpu(numbers: Vec<u32>) -> Option<Vec<u32>> {
         .await
         .unwrap();
 
-    let nums: Vec<u32> = futures::future::join_all(numbers.chunks(65535).map(|chunck| async {
-        execute_gpu_inner(&device, &queue, chunck).await.unwrap()
-    })).await.concat();
+    let tasks: Vec<_> = numbers
+        .par_chunks(device.limits().max_compute_workgroups_per_dimension as usize)
+        .map(|chunck| async {
+            execute_gpu_inner(&device, &queue, chunck).await.unwrap()
+        })
+        .collect();
 
-    Some(nums)
+    Some(join_all(tasks).await.concat())
 }
 
 async fn execute_gpu_inner(
