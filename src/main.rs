@@ -53,5 +53,5 @@ fn fib(n: u32) -> u32 {
         second_num = first_num;
         first_num = current_num;
     }
-    return current_num;
+    current_num
 }
