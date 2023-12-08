@@ -7,24 +7,13 @@ use rayon::prelude::*;
 
 #[tokio::main]
 async fn main() {
+    // Calculate fin(500,000) 500,000 times
     let numbers: Vec<_> = vec![500_000; 500_000];
-
-    println!("Benching GPU...");
-
-    timeit!({
-        execute_gpu(numbers.clone()).await.unwrap();
-    });
-
-    println!("Benching CPU...");
-
-    timeit!({
-        execute_cpu(numbers.clone());
-    });
 
     let steps_gpu = execute_gpu(numbers.clone()).await.unwrap();
     let steps_cpu = execute_cpu(numbers.clone());
 
-    for (index, gpu_ans) in steps_gpu.iter().enumerate() {
+    steps_gpu.par_iter().enumerate().for_each(|(index, gpu_ans)|{
         if *gpu_ans != steps_cpu[index] {
             println!(
                 "GPU Answer: {} != CPU Answer: {}",
@@ -32,9 +21,28 @@ async fn main() {
             );
             panic!("Your code is wrong!");
         }
-    }
+    });
 
-    println!("Answers recieved were identical.");
+    println!("Answers recieved were identical between the GPU and CPU.");
+
+    println!("Benching CPU...");
+
+    let cpu_time = timeit_loops!(5, {
+        execute_cpu(numbers.clone());
+    });
+
+    println!("Benching GPU...");
+
+    let gpu_time = timeit_loops!(5, {
+        execute_gpu(numbers.clone()).await.unwrap();
+    });
+
+    println!(
+        "CPU time: {}, GPU time: {}, ratio: {}",
+        cpu_time,
+        gpu_time,
+        cpu_time / gpu_time
+    );
 }
 
 const MAX: u32 = 100000;

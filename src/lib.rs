@@ -1,5 +1,3 @@
-use futures::future::join_all;
-use rayon::prelude::*;
 use std::borrow::Cow;
 use wgpu::{util::DeviceExt, Limits};
 
@@ -28,12 +26,11 @@ pub async fn execute_gpu(numbers: Vec<u32>) -> Option<Vec<u32>> {
         .await
         .unwrap();
 
-    let tasks: Vec<_> = numbers
-        .par_chunks(device.limits().max_compute_workgroups_per_dimension as usize)
-        .map(|chunck| async { execute_gpu_inner(&device, &queue, chunck).await.unwrap() })
-        .collect();
+    let answer = execute_gpu_inner(&device, &queue, numbers.as_slice())
+        .await
+        .unwrap();
 
-    Some(join_all(tasks).await.concat())
+    Some(answer)
 }
 
 async fn execute_gpu_inner(
@@ -73,6 +70,17 @@ async fn execute_gpu_inner(
             | wgpu::BufferUsages::COPY_DST
             | wgpu::BufferUsages::COPY_SRC,
     });
+    
+    let workgroups = device
+        .limits()
+        .max_compute_workgroups_per_dimension
+        .min(numbers.len() as u32);
+
+    let chunk_size_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("Chunk Size"),
+        contents: bytemuck::cast_slice(&[(numbers.len() as u32 + workgroups) / workgroups]),
+        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+    });
 
     // A bind group defines how buffers are accessed by shaders.
     // It is to WebGPU what a descriptor set is to Vulkan.
@@ -93,10 +101,16 @@ async fn execute_gpu_inner(
     let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: None,
         layout: &bind_group_layout,
-        entries: &[wgpu::BindGroupEntry {
-            binding: 0,
-            resource: storage_buffer.as_entire_binding(),
-        }],
+        entries: &[
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: storage_buffer.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: chunk_size_buffer.as_entire_binding(),
+            },
+        ],
     });
 
     // A command encoder executes one or many pipelines.
@@ -110,9 +124,10 @@ async fn execute_gpu_inner(
         });
         cpass.set_pipeline(&compute_pipeline);
         cpass.set_bind_group(0, &bind_group, &[]);
-        cpass.insert_debug_marker("compute collatz iterations");
-        cpass.dispatch_workgroups(numbers.len() as u32, 1, 1); // Number of cells to run, the (x,y,z) size of item being processed
+        cpass.insert_debug_marker("compute fibonacci");
+        cpass.dispatch_workgroups(workgroups, 1, 1); // Number of cells to run, the (x,y,z) size of item being processed
     }
+
     // Sets adds copy operation to command encoder.
     // Will copy data from storage buffer on GPU to staging buffer on CPU.
     encoder.copy_buffer_to_buffer(&storage_buffer, 0, &staging_buffer, 0, size);
