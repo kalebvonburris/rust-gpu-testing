@@ -24,7 +24,7 @@ fn fib(n: u32) -> u32{
 }
 
 @compute
-@workgroup_size(1)
+@workgroup_size(256)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     v_indices[global_id.x] = fib(v_indices[global_id.x]);
 }

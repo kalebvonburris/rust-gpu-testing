@@ -7,7 +7,7 @@ use rayon::prelude::*;
 
 #[tokio::main]
 async fn main() {
-    let numbers: Vec<_> = (0..50_000).collect();
+    let numbers: Vec<_> = vec![500_000; 500_000];
 
     println!("Benching GPU...");
 
